@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>redirecting...</title>
+</head>
+<body>
+<p>フォームへ移動しています…</p>
+<p><a id="fallback" href="#">開かない場合はこちらをクリック</a></p>
+<script>
+(function(){
+  var rid = Math.random().toString(36).substring(2,7);  // 5文字ランダムID
+  var ua  = navigator.userAgent || "";
+  var gasApiUrl = "https://script.google.com/a/macros/ous.ac.jp/s/AKfycbxAtPcHlt1xQUDO2uHwMahmKb98VdCc0dNj_bmflurnyeswEb-mSLzwwyGdrfU3J7k/exec?log=1"; // ←置き換え
+  var formBase  = "https://docs.google.com/forms/d/e/1FAIpQLScG3joWGpGkjGHGJ-Gna84CPxI2xg36M1gWErtxv6WBkuZCaQ/viewform?usp=pp_url"; // ←置き換え
+  var entryKey  = "entry.1415853317"; // ←置き換え
+
+  // ログ送信（UAとridをApps ScriptにPOST）
+  try {
+    var payload = JSON.stringify({rid: rid, ua: ua});
+    navigator.sendBeacon(gasApiUrl, new Blob([payload], {type:"text/plain"}));
+  } catch(e) {}
+
+  // 転送先フォーム
+  var dest = formBase + "&" + entryKey + "=" + encodeURIComponent(rid);
+  document.getElementById("fallback").href = dest;
+  // 自動遷移
+  setTimeout(function(){ window.location.replace(dest); }, 300);
+})();
+</script>
+</body>
+</html>
