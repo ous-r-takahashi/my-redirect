@@ -16,16 +16,31 @@
   var formBase  = "https://docs.google.com/forms/d/e/1FAIpQLScG3joWGpGkjGHGJ-Gna84CPxI2xg36M1gWErtxv6WBkuZCaQ/viewform?usp=pp_url"; // ←置き換え
   var entryKey  = "entry.1415853317"; // ←置き換え
 
-  // ログ送信（UAとridをApps ScriptにPOST）
-  try {
-    var payload = JSON.stringify({rid: rid, ua: ua});
-    navigator.sendBeacon(gasApiUrl, new Blob([payload], {type:"text/plain"}));
-  } catch(e) {}
+  function rid5(){
+    var s = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    var r = "";
+    for (var i=0;i<5;i++) r += s.charAt(Math.floor(Math.random()*s.length));
+    return r;
+  }
 
-  // 転送先フォーム
-  var dest = formBase + "&" + entryKey + "=" + encodeURIComponent(rid);
+  var rid = rid5();
+  var ua  = navigator.userAgent || "";
+  var dest = FORM_BASE + "&" + ENTRY_KEY + "=" + encodeURIComponent(rid);
   document.getElementById("fallback").href = dest;
-  // 自動遷移
+
+  // 1) sendBeacon (POST)
+  try {
+    var ok = navigator.sendBeacon(
+      GAS + "?log=1",
+      new Blob([JSON.stringify({rid: rid, ua: ua})], {type:"text/plain"})
+    );
+  } catch(e){}
+
+  // 2) 画像GETフォールバック（CORS不要）
+  var img = new Image();
+  img.src = GAS + "?log=1&rid=" + encodeURIComponent(rid) + "&ua=" + encodeURIComponent(ua);
+
+  // 0.3秒後に通常遷移
   setTimeout(function(){ window.location.replace(dest); }, 300);
 })();
 </script>
