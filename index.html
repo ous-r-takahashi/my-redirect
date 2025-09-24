@@ -70,10 +70,30 @@
                         + "&t=" + Date.now();
       } catch(e){}
 
-      // 少し待って遷移（iOS対策）
-      setTimeout(function(){
-        try { window.location.replace(dest); } catch(e){ window.location.href = dest; }
-      }, 400);
+      // --- 連打ガード付き遷移 ---
+const link = document.getElementById("fallback");
+link.href = dest;
+
+let navigating = false;
+function go() {
+  if (navigating) return;        // 2回目以降は無視
+  navigating = true;
+  // 見た目も無効化
+  link.textContent = "開いています…";
+  link.style.pointerEvents = "none";
+  link.style.opacity = "0.6";
+  try { window.location.replace(dest); }
+  catch (e) { window.location.href = dest; }
+}
+
+// 自動遷移（0.4秒後に1回だけ）
+setTimeout(go, 400);
+
+// クリックでも go（連打しても1回だけ実行）
+link.addEventListener("click", function (e) {
+  e.preventDefault();
+  go();
+});
     } catch(err) {
       // 失敗時はリンクだけでも開けるようにする
       document.getElementById("fallback").textContent = "フォームを開く";
@@ -89,4 +109,5 @@
 </script>
 </body>
 </html>
+
 
