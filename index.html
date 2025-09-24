@@ -12,7 +12,7 @@
 <script>
 (function(){
   // ← ここだけ自分の /exec に
-  const GAS_EXEC = "https://script.google.com/macros/s/AKfycbwDNWHpt5MwblVtv_O_3hsyslzABZY5MCBD6-Ke9Lbg7mJWovzHgLOghH5qjvYfY1dqqw/exec";
+  const GAS_EXEC = "https://script.google.com/macros/s/AKfycbwa8dejA8XkUFACuVGR_AXyZ__Kg_q50_BmVPxaPnCvh7_51KEFEzjc98ZrK2Ms_kLPWA/exec";
 
   // 5文字ランダムID
   function rid5(){
@@ -73,7 +73,7 @@
       // 少し待って遷移（iOS対策）
       setTimeout(function(){
         try { window.location.replace(dest); } catch(e){ window.location.href = dest; }
-      }, 700);
+      }, 400);
     } catch(err) {
       // 失敗時はリンクだけでも開けるようにする
       document.getElementById("fallback").textContent = "フォームを開く";
@@ -89,3 +89,4 @@
 </script>
 </body>
 </html>
+
