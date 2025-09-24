@@ -1,50 +1,80 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>redirecting...</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
+    pre { background: #f5f5f5; padding: 12px; white-space: pre-wrap; }
+    .btn { display:inline-block; padding:10px 14px; border:1px solid #999; border-radius:8px; text-decoration:none; }
+  </style>
 </head>
 <body>
-<p>フォームへ移動しています…</p>
-<p><a id="fallback" href="#">開かない場合はこちらをクリック</a></p>
+  <p>フォームへ移動しています…</p>
+  <p><a id="fallback" class="btn" href="#">開かない場合はこちらをクリック</a></p>
+  <details><summary>デバッグ情報</summary><pre id="dbg">loading…</pre></details>
+
 <script>
 (function(){
-  var rid = Math.random().toString(36).substring(2,7);  // 5文字ランダムID
-  var ua  = navigator.userAgent || "";
-  var gasApiUrl = "https://script.google.com/macros/s/AKfycbydN4tvXB96oqapTwXhTrMla_rgUpxoI7p1NhmkcVMfw2MgtvmFCUNmp6Q_g0oeJi968A/exec?log=1"; // ←置き換え
-  var formBase  = "https://docs.google.com/forms/d/e/1FAIpQLScG3joWGpGkjGHGJ-Gna84CPxI2xg36M1gWErtxv6WBkuZCaQ/viewform?usp=pp_url"; // ←置き換え
-  var entryKey  = "entry.1415853317"; // ←置き換え
+  // === ここを書き換え ===
+  const GAS       = "https://script.google.com/macros/s/【あなたの /exec URL】/exec"; // 末尾は /exec
+  const FORM_BASE = "https://docs.google.com/forms/d/e/【フォームID】/viewform?usp=pp_url"; // 事前入力リンクのベース
+  const ENTRY_KEY = "entry.123456789"; // 短文回答の entry.xxxxx
+  // ======================
+
+  const dbg = (o) => document.getElementById('dbg').textContent =
+    typeof o === 'string' ? o : JSON.stringify(o, null, 2);
 
   function rid5(){
-    var s = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    var r = "";
-    for (var i=0;i<5;i++) r += s.charAt(Math.floor(Math.random()*s.length));
+    const s = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let r = ""; for (let i=0;i<5;i++) r += s.charAt(Math.floor(Math.random()*s.length));
     return r;
   }
 
-  var rid = rid5();
-  var ua  = navigator.userAgent || "";
-  var dest = FORM_BASE + "&" + ENTRY_KEY + "=" + encodeURIComponent(rid);
-  document.getElementById("fallback").href = dest;
-
-  // 1) sendBeacon (POST)
   try {
-    var ok = navigator.sendBeacon(
-      GAS + "?log=1",
-      new Blob([JSON.stringify({rid: rid, ua: ua})], {type:"text/plain"})
-    );
-  } catch(e){}
+    // 入力チェック
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(GAS)) {
+      throw new Error("GAS が /exec で終わる完全URLになっていません");
+    }
+    if (!/^https:\/\/docs\.google\.com\/forms\/d\/e\/.+\/viewform/.test(FORM_BASE)) {
+      throw new Error("FORM_BASE が Googleフォームの viewform URL ではありません");
+    }
+    if (!/^entry\.\d+$/.test(ENTRY_KEY)) {
+      throw new Error("ENTRY_KEY が entry.数字 の形式になっていません");
+    }
 
-  // 2) 画像GETフォールバック（CORS不要）
-  var img = new Image();
-  img.src = GAS + "?log=1&rid=" + encodeURIComponent(rid) + "&ua=" + encodeURIComponent(ua);
+    const rid = rid5();
+    const ua  = navigator.userAgent || "";
+    const dest = FORM_BASE + "&" + ENTRY_KEY + "=" + encodeURIComponent(rid);
 
-  // 0.3秒後に通常遷移
-  setTimeout(function(){ window.location.replace(dest); }, 300);
+    // 画面にも出しておく（クリックで開ける）
+    document.getElementById('fallback').href = dest;
+    dbg({ rid, ua, GAS, dest });
+
+    // 1) POST（sendBeacon）
+    try {
+      navigator.sendBeacon(
+        GAS + "?log=1",
+        new Blob([JSON.stringify({ rid, ua })], { type: "text/plain" })
+      );
+    } catch (e) {
+      // 2) GET フォールバック（画像ビーコン）
+      const img = new Image();
+      img.src = GAS + "?log=1&rid=" + encodeURIComponent(rid) + "&ua=" + encodeURIComponent(ua);
+    }
+
+    // 0.5秒後に通常遷移（自動）
+    setTimeout(function(){
+      try { window.location.replace(dest); }
+      catch(e){ window.location.href = dest; }
+    }, 500);
+
+  } catch (err) {
+    // ここに来たら変数の記入ミス等です
+    dbg("エラー: " + err.message);
+  }
 })();
 </script>
 </body>
 </html>
-
-
