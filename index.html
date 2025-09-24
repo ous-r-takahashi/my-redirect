@@ -4,79 +4,88 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>redirecting...</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
-    pre { background: #f5f5f5; padding: 12px; white-space: pre-wrap; }
-    .btn { display:inline-block; padding:10px 14px; border:1px solid #999; border-radius:8px; text-decoration:none; }
-  </style>
 </head>
 <body>
-  <p>フォームへ移動しています…</p>
-  <p><a id="fallback" class="btn" href="#">開かない場合はこちらをクリック</a></p>
-  <details><summary>デバッグ情報</summary><pre id="dbg">loading…</pre></details>
+<p>フォームへ移動しています…</p>
+<p><a id="fallback" href="#">開かない場合はこちら</a></p>
 
 <script>
 (function(){
-  // === ここを書き換え ===
-  const GAS       = "https://script.google.com/macros/s/AKfycbyIp803-ewqhHypnK6-p50LBFaDvRuJY58dVytCvf4ITIU9kImr_nDUtfubNi08-8FCjg/exec"; // 末尾は /exec
-  const FORM_BASE = "https://docs.google.com/forms/d/e/1FAIpQLScG3joWGpGkjGHGJ-Gna84CPxI2xg36M1gWErtxv6WBkuZCaQ/viewform?usp=pp_url"; // 事前入力リンクのベース
-  const ENTRY_KEY = "entry.1415853317"; // 短文回答の entry.xxxxx
-  // ======================
+  // ← ここだけ自分の /exec に
+  const GAS_EXEC = "https://script.google.com/macros/s/AKfycbwDNWHpt5MwblVtv_O_3hsyslzABZY5MCBD6-Ke9Lbg7mJWovzHgLOghH5qjvYfY1dqqw/exec";
 
-  const dbg = (o) => document.getElementById('dbg').textContent =
-    typeof o === 'string' ? o : JSON.stringify(o, null, 2);
-
+  // 5文字ランダムID
   function rid5(){
-    const s = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let r = ""; for (let i=0;i<5;i++) r += s.charAt(Math.floor(Math.random()*s.length));
+    const s="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let r=""; for(let i=0;i<5;i++) r+=s.charAt(Math.floor(Math.random()*s.length));
     return r;
   }
 
-  try {
-    // 入力チェック
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(GAS)) {
-      throw new Error("GAS が /exec で終わる完全URLになっていません");
-    }
-    if (!/^https:\/\/docs\.google\.com\/forms\/d\/e\/.+\/viewform/.test(FORM_BASE)) {
-      throw new Error("FORM_BASE が Googleフォームの viewform URL ではありません");
-    }
-    if (!/^entry\.\d+$/.test(ENTRY_KEY)) {
-      throw new Error("ENTRY_KEY が entry.数字 の形式になっていません");
-    }
+  const rid = rid5();
+  const ua  = navigator.userAgent || "";
+  const ref = document.referrer || "";
 
-    const rid = rid5();
-    const ua  = navigator.userAgent || "";
-    const dest = FORM_BASE + "&" + ENTRY_KEY + "=" + encodeURIComponent(rid);
+  // IP取得（失敗しても空でOK）
+  let ip = "";
+  fetch("https://api.ipify.org?format=json").then(r=>r.json()).then(j=>{ ip = j.ip || ""; }).catch(()=>{});
 
-    // 画面にも出しておく（クリックで開ける）
-    document.getElementById('fallback').href = dest;
-    dbg({ rid, ua, GAS, dest });
-
-    // 1) POST（sendBeacon）
+  // 設定JSONPの受け取り
+  const cb = "conf_cb_" + Math.random().toString(36).slice(2);
+  window[cb] = function(conf){
     try {
-      navigator.sendBeacon(
-        GAS + "?log=1",
-        new Blob([JSON.stringify({ rid, ua })], { type: "text/plain" })
-      );
-    } catch (e) {
-      // 2) GET フォールバック（画像ビーコン）
-      const img = new Image();
-      img.src = GAS + "?log=1&rid=" + encodeURIComponent(rid) + "&ua=" + encodeURIComponent(ua);
+      const base = conf.form_base_url || "";
+      const key  = conf.form_entry_key || "";
+      if(!base || !key) throw new Error("設定が空です（form_base_url / form_entry_key）");
+
+      const dest = base + (base.indexOf("?")>=0 ? "&" : "?") + key + "=" + encodeURIComponent(rid);
+      document.getElementById("fallback").href = dest;
+
+      // --- 送信：三重化 ---
+      // fetch keepalive（POST）
+      try {
+        fetch(GAS_EXEC + "?log=1", {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ rid, ua, ref, ip }),
+          keepalive: true
+        }).catch(()=>{});
+      } catch(e){}
+
+      // sendBeacon（POST）
+      try {
+        navigator.sendBeacon(
+          GAS_EXEC + "?log=1",
+          new Blob([JSON.stringify({ rid, ua, ref, ip })], { type: "text/plain" })
+        );
+      } catch(e){}
+
+      // 画像GET（キャッシュバスター付）
+      try {
+        const img = new Image();
+        img.src = GAS_EXEC + "?log=1&rid=" + encodeURIComponent(rid)
+                        + "&ua=" + encodeURIComponent(ua)
+                        + "&ref=" + encodeURIComponent(ref)
+                        + "&ip=" + encodeURIComponent(ip)
+                        + "&t=" + Date.now();
+      } catch(e){}
+
+      // 少し待って遷移（iOS対策）
+      setTimeout(function(){
+        try { window.location.replace(dest); } catch(e){ window.location.href = dest; }
+      }, 700);
+    } catch(err) {
+      // 失敗時はリンクだけでも開けるようにする
+      document.getElementById("fallback").textContent = "フォームを開く";
     }
+  };
 
-    // 0.5秒後に通常遷移（自動）
-    setTimeout(function(){
-      try { window.location.replace(dest); }
-      catch(e){ window.location.href = dest; }
-    }, 500);
-
-  } catch (err) {
-    // ここに来たら変数の記入ミス等です
-    dbg("エラー: " + err.message);
-  }
+  // JSONPスクリプト挿入
+  const s = document.createElement("script");
+  s.src = GAS_EXEC + "?cfg=1&callback=" + cb;
+  s.async = true;
+  document.head.appendChild(s);
 })();
 </script>
 </body>
 </html>
-
-
