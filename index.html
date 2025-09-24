@@ -4,32 +4,39 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>redirecting...</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
+    .btn { display:inline-block; padding:10px 14px; border:1px solid #999; border-radius:8px; text-decoration:none; }
+  </style>
 </head>
 <body>
-<p>フォームへ移動しています…</p>
-<p><a id="fallback" href="#">開かない場合はこちら</a></p>
+  <p>フォームへ移動しています…</p>
+  <p><a id="fallback" class="btn" href="#">開かない場合はこちら</a></p>
 
 <script>
 (function(){
-  // ← ここだけ自分の /exec に
-  const GAS_EXEC = "https://script.google.com/macros/s/AKfycbwa8dejA8XkUFACuVGR_AXyZ__Kg_q50_BmVPxaPnCvh7_51KEFEzjc98ZrK2Ms_kLPWA/exec";
+  // ★ あなたのGAS /exec に差し替え（末尾 /exec の完全URL）
+  const GAS_EXEC = "https://script.google.com/macros/s/AKfycbzK6kaL13DaDIvIZ72Gnshd0YzR2vZtTwI8AudIxjeLP7JSVUlgj9rFlq9VbeuEomGzSg/exec";
 
-  // 5文字ランダムID
+  // URLクエリ
+  const qs   = new URLSearchParams(location.search);
+  const snd  = qs.get("snd_id") || "";                 // ← 追加メタ（送り主IDなど）
+
+  // ランダムID（5文字）
   function rid5(){
     const s="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let r=""; for(let i=0;i<5;i++) r+=s.charAt(Math.floor(Math.random()*s.length));
-    return r;
+    let r=""; for(let i=0;i<5;i++) r+=s.charAt(Math.floor(Math.random()*s.length)); return r;
   }
 
   const rid = rid5();
   const ua  = navigator.userAgent || "";
   const ref = document.referrer || "";
+  let ip = ""; // 後で埋まる（失敗なら空）
 
-  // IP取得（失敗しても空でOK）
-  let ip = "";
+  // グローバルIP取得（非同期・失敗しても無視）
   fetch("https://api.ipify.org?format=json").then(r=>r.json()).then(j=>{ ip = j.ip || ""; }).catch(()=>{});
 
-  // 設定JSONPの受け取り
+  // ==== GASから設定(JSONP)を取得してフォームURLを組み立て ====
   const cb = "conf_cb_" + Math.random().toString(36).slice(2);
   window[cb] = function(conf){
     try {
@@ -37,70 +44,67 @@
       const key  = conf.form_entry_key || "";
       if(!base || !key) throw new Error("設定が空です（form_base_url / form_entry_key）");
 
+      // 事前入力（rid）を付与
       const dest = base + (base.indexOf("?")>=0 ? "&" : "?") + key + "=" + encodeURIComponent(rid);
-      document.getElementById("fallback").href = dest;
 
-      // --- 送信：三重化 ---
-      // fetch keepalive（POST）
+      // 連打ガード付き遷移
+      const link = document.getElementById("fallback");
+      link.href = dest;
+
+      let navigating = false;
+      function go() {
+        if (navigating) return;
+        navigating = true;
+        link.textContent = "開いています…";
+        link.style.pointerEvents = "none";
+        link.style.opacity = "0.6";
+        try { window.location.replace(dest); } catch(e) { window.location.href = dest; }
+      }
+      link.addEventListener("click", function (e) { e.preventDefault(); go(); });
+
+      // ==== ログ送信（snd_id / referrer / ip 付き）====
+      // 1) fetch keepalive（POST）
       try {
         fetch(GAS_EXEC + "?log=1", {
           method: "POST",
           mode: "no-cors",
           headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ rid, ua, ref, ip }),
+          body: JSON.stringify({ rid, ua, ref, ip, snd_id: snd }),
           keepalive: true
         }).catch(()=>{});
       } catch(e){}
 
-      // sendBeacon（POST）
+      // 2) sendBeacon（POST）
       try {
         navigator.sendBeacon(
           GAS_EXEC + "?log=1",
-          new Blob([JSON.stringify({ rid, ua, ref, ip })], { type: "text/plain" })
+          new Blob([JSON.stringify({ rid, ua, ref, ip, snd_id: snd })], { type: "text/plain" })
         );
       } catch(e){}
 
-      // 画像GET（キャッシュバスター付）
+      // 3) 画像GET（キャッシュバスター付）
       try {
         const img = new Image();
-        img.src = GAS_EXEC + "?log=1&rid=" + encodeURIComponent(rid)
-                        + "&ua=" + encodeURIComponent(ua)
-                        + "&ref=" + encodeURIComponent(ref)
-                        + "&ip=" + encodeURIComponent(ip)
-                        + "&t=" + Date.now();
+        img.src = GAS_EXEC + "?log=1"
+          + "&rid=" + encodeURIComponent(rid)
+          + "&ua="  + encodeURIComponent(ua)
+          + "&ref=" + encodeURIComponent(ref)
+          + "&ip="  + encodeURIComponent(ip)
+          + "&snd_id=" + encodeURIComponent(snd)
+          + "&t=" + Date.now();
       } catch(e){}
 
-      // --- 連打ガード付き遷移 ---
-const link = document.getElementById("fallback");
-link.href = dest;
+      // 0.4秒後に自動遷移（iOS対策＆体感改善）
+      setTimeout(go, 400);
 
-let navigating = false;
-function go() {
-  if (navigating) return;        // 2回目以降は無視
-  navigating = true;
-  // 見た目も無効化
-  link.textContent = "開いています…";
-  link.style.pointerEvents = "none";
-  link.style.opacity = "0.6";
-  try { window.location.replace(dest); }
-  catch (e) { window.location.href = dest; }
-}
-
-// 自動遷移（0.4秒後に1回だけ）
-setTimeout(go, 400);
-
-// クリックでも go（連打しても1回だけ実行）
-link.addEventListener("click", function (e) {
-  e.preventDefault();
-  go();
-});
     } catch(err) {
-      // 失敗時はリンクだけでも開けるようにする
-      document.getElementById("fallback").textContent = "フォームを開く";
+      // 失敗時もリンクからは開けるようにしておく
+      const link = document.getElementById("fallback");
+      link.textContent = "フォームを開く（エラー: " + err.message + "）";
     }
   };
 
-  // JSONPスクリプト挿入
+  // JSONPロード
   const s = document.createElement("script");
   s.src = GAS_EXEC + "?cfg=1&callback=" + cb;
   s.async = true;
@@ -109,5 +113,3 @@ link.addEventListener("click", function (e) {
 </script>
 </body>
 </html>
-
-
